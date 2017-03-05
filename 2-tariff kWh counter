@@ -1,21 +1,30 @@
+/*
+В логике счетчика первично общее количество кВт и только потом расчет ночной скидки от тарифа.
+Расчет скидки в нижестоящих категориях ведется относительно соотношения потребления днем и ночью.
+*/
+
 #include "stdafx.h"
 #include <iostream>
 
 using namespace std;
 
+bool check_valid(float prev, float act);
+float to_100(float day, float night, float *tariff);
+float _100_to_600 (float day, float night, float *tariff);
+float over_600 (float day, float night, float *tariff);
+
 int main()
 {
 	setlocale(LC_ALL, "rus");
 
-	float prev_num_day, prev_num_night;
-	float act_num_day, act_num_night;
-	float sum_day, sun_night;
+	float prev_num_day = 1, prev_num_night = 1;
+	float act_num_day = 1, act_num_night = 1;
+	float total_sum, sum_day, sum_night;
+	float to_pay;
 
-	float tariff_1 = 0.456, tariff_2 = 0.789, tariff_3 = 1.479;
-
-
-
-
+	float tariff[3] = { 0.456f, 0.789f, 1.479f };
+	char otvet = 'y';
+	
 	cout << "Расчет стоимости электроэнергии двухтарифного счетчика\n";
 	cout << "______________________________________________________\n";
 	cout << "                  Действующие тарифы:                 \n";
@@ -25,19 +34,94 @@ int main()
 	cout << " ночной тариф -50% от стоимости дневного              \n";
 	cout << "______________________________________________________\n";
 	
-	cout << "Введите показания прошлого месяца/день:		   ";
-	cin >> prev_num_day;
-	cout << "Введите показания текущего месяца/день:		   ";
-	cin >> act_num_day;
-	cout << "______________________________________________________\n";
+	do {
+		do {
+			cout << "Введите показания прошлого месяца/день:		   ";
+			cin >> prev_num_day;
+			cout << "Введите показания текущего месяца/день:		   ";
+			cin >> act_num_day;
+			cout << "______________________________________________________\n";
+		}
+		while (!check_valid(prev_num_day, act_num_day));
 
-	cout << "Введите показания прошлого месяца/ночь:		   ";
-	cin >> prev_num_night;
-	cout << "Введите показания текущего месяца/ночь:		   ";
-	cin >> act_num_night;
-	cout << "______________________________________________________\n";
+		do {
+			cout << "Введите показания прошлого месяца/ночь:		   ";
+			cin >> prev_num_night;
+			cout << "Введите показания текущего месяца/ночь:		   ";
+			cin >> act_num_night;
+			cout << "______________________________________________________\n";
+		}
+		while (!check_valid(prev_num_night, act_num_night));
 
+		sum_day = act_num_day - prev_num_day;									// всего дневных кВт
+		sum_night = act_num_night - prev_num_night;								// всего ночных кВт
+		total_sum = sum_day + sum_night;										// всего кВт				
 
+		if (total_sum <= 100) {			
+			to_pay = to_100(sum_day, sum_night, tariff);
+			cout << "Всего к оплате за " << total_sum << " кВт: " << to_pay << " руб\n";
+		}
+		else if (total_sum > 100 && total_sum <= 600) {
+			to_pay = _100_to_600(sum_day, sum_night, tariff);
+			cout << "Всего к оплате за " << total_sum << " кВт: " << to_pay << " руб\n";
+		}
+		else if (total_sum > 600) {
+			to_pay = over_600(sum_day, sum_night, tariff);
+			cout << "Всего к оплате за " << total_sum << " кВт: " << to_pay << " руб\n";
+		}
+		
+		cout << "Новый расчет y or n?\n";
+		cin >> otvet;
+	} while (otvet != 'n' && otvet != 'N');
 
-	system("pause");
+	return 0;
+	//system("pause");
+}
+
+bool check_valid(float prev, float act) {
+	if (prev - act > 0) {
+		cout << "Вы ошиблись при вводе, проверьте данные\n";
+		return false;
+	}
+	else if (prev == act) {
+		cout << "Внимание: текущие и прошлые показания равны\n";
+		cout << "Расчет будет произведен относительно 0 потребления\n";		
+		return true;
+	}
+	return true;	
+}
+
+float to_100(float day, float night, float *tariff) {
+	return (day + night / 2)*tariff[0];
+}
+
+float _100_to_600(float day, float night, float *tariff) {
+	float pay_sum, pay_sum2;
+	float day_rate = day / (day + night);
+	float night_rate = night / (day + night);
+
+	// считаем сумму до 100 кВт
+	pay_sum = 100 * (day_rate*tariff[0] + night_rate*(tariff[0] / 2));
+	cout << "К оплате за 0-100 кВт: " << pay_sum << " руб\n";
+	// считаем остаток кВт
+	pay_sum2 = (day + night - 100)*(day_rate*tariff[1] + night_rate*(tariff[1] / 2));
+	cout << "К оплате за 100-" << day+night << " кВт: " << pay_sum2 << " руб\n";
+	return pay_sum + pay_sum2;
+}
+
+float over_600(float day, float night, float *tariff) {
+	float pay_sum, pay_sum2, pay_sum3;
+	float day_rate = day / (day + night);
+	float night_rate = night / (day + night);
+
+	// считаем сумму до 100 кВт
+	pay_sum = 100 * (day_rate*tariff[0] + night_rate*(tariff[0] / 2));
+	cout << "К оплате за 0-100 кВт: " << pay_sum << " руб\n";
+	// считаем остаток кВт
+	pay_sum2 = 500*(day_rate*tariff[1] + night_rate*(tariff[1] / 2));
+	cout << "К оплате за 100-600 кВт: " << pay_sum2 << " руб\n";
+	pay_sum3 = (day + night - 600)*(day_rate*tariff[2] + night_rate*(tariff[2] / 2));
+	cout << "К оплате за 600-" << day + night << " кВт: " << pay_sum3 << " руб\n";
+
+	return pay_sum+pay_sum2 + pay_sum3;
 }
